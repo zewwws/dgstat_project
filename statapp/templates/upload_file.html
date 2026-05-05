@@ -14,17 +14,45 @@
 
 <hr>
 
-<h3>Filter Data by Date Range</h3>
+<h3>Filtra per periodo</h3>
 
-<label for="start_date">Start Date:</label>
-<input type="date" id="start_date" name="start_date">
+<!-- Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/it.js"></script>
 
-<label for="end_date">End Date:</label>
-<input type="date" id="end_date" name="end_date">
+<label for="start_date">Data inizio:</label>
+<input type="text" id="start_date" name="start_date" placeholder="gg/mm/aaaa">
 
-<button id="filter_button" type="button">Filter</button>
+<label for="end_date">Data fine:</label>
+<input type="text" id="end_date" name="end_date" placeholder="gg/mm/aaaa">
+
+<button id="filter_button" type="button">Filtra</button>
 
 <hr>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function() {
+    const config = {
+        dateFormat: "d/m/Y",
+        locale: "it",
+        allowInput: true,
+        parseDate: (dateStr, format) => {
+            const parts = dateStr.split("/");
+            if (parts.length !== 3) return null;
+            let [day, month, year] = parts;
+            if (year.length === 2) year = "20" + year;
+            day = day.padStart(2, '0');
+            month = month.padStart(2, '0');
+            return new Date(`${year}-${month}-${day}`);
+        }
+    };
+    flatpickr("#start_date", config);
+    flatpickr("#end_date", config);
+});
+
+</script>
 
 <button id="process_data">Process Data</button>
 <button id="process_riepilogo">Process Riepilogo</button>

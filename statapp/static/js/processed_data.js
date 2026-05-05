@@ -3,38 +3,41 @@ let startDate
 let endDate
 document.addEventListener('DOMContentLoaded', function() {
     let filtereData = [];
-    function convertTimeFormat(timeString) {
-        // Parse the time string into a Date object
-        const dateObj = new Date(timeString);
-      
-        // Format the date to YYYYMMDD
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0'); // Months are 0-based, so add 1
-        const day = String(dateObj.getDate()).padStart(2, '0');
-      
+    function toYYYYMMDD(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
         return `${year}${month}${day}`;
     }
 
-    function convertMMDDYYYYToISO(dateStr) {
-        if (typeof dateStr === 'string') {
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-                let year = parts[2];
-                if (year.length === 2) {
-                    // Convert 2-digit year to 4-digit year
-                    year = year > 50 ? `19${year}` : `20${year}`;
-                }
-                const month = parts[0].padStart(2, '0'); // Ensure 2-digit month
-                const day = parts[1].padStart(2, '0');   // Ensure 2-digit day
-                return `${year}-${month}-${day}`;       // ISO format yyyy-mm-dd
-            } else {
-                console.error('Invalid date string, expected mm/dd/yyyy format:', dateStr);
-                return null;
-            }
-        } else {
-            console.error('Invalid date type:', dateStr);
-            return null;
+    function convertDDMMYYYYToISO(dateStr) {
+        if (!dateStr) return null;
+        
+        // Handle Excel serial numbers
+        if (typeof dateStr === 'number') {
+            dateStr = excelSerialToDate(dateStr);
         }
+        
+        dateStr = String(dateStr).trim();
+        const parts = dateStr.split("/");
+        if (parts.length !== 3) return null;
+        const [day, month, year] = parts;
+        if (!day || !month || !year) return null;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    function parseDDMMYYYY(str) {
+        const [day, month, year] = str.split("/");
+        return new Date(`${year}-${month}-${day}`);
+    }
+
+    function excelSerialToDate(serial) {
+        // Excel serial: days since 1900-01-01 (with leap year bug)
+        const date = new Date((serial - 25569) * 86400 * 1000);
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const year = date.getUTCFullYear();
+        return `${day}/${month}/${year}`;
     }
 
     let filteredData = [];
@@ -42,8 +45,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let trimester = [];
     // Filter button event listener
     document.getElementById('filter_button').addEventListener('click', function() {
-        const startDate = new Date(document.getElementById('start_date').value);
-        const endDate = new Date(document.getElementById('end_date').value);
+        const startDate = parseDDMMYYYY(document.getElementById('start_date').value);
+        const endDate = parseDDMMYYYY(document.getElementById('end_date').value);
 
         fetch('/get_latest_file/')
         .then(response => response.json())
@@ -58,16 +61,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         const rows = XLSX.utils.sheet_to_json(sheet, {
                             header: 1,
                             defval: '',
-                            raw: false
+                            raw: true,
+                            dateNF: 'dd/mm/yyyy'
                             
                         });
 
-                        const headers = rows[0] || [];
+                        const DATE_FIELDS = ['AVVIATO', 'CONCLUSO', '1INC'];
+
+                        const headers = rows[0] || []; 
                         allData = rows.slice(1).map(row => {
-                            return headers.reduce((acc, header, index) => {
-                                acc[header] = row[index] || '';
+                            const normalized = headers.reduce((acc, header, index) => {
+                                acc[header] = row[index] ?? '';
                                 return acc;
                             }, {});
+
+                            // Convert all date serials to DD/MM/YYYY strings once
+                            DATE_FIELDS.forEach(field => {
+                                if (typeof normalized[field] === 'number') {
+                                    normalized[field] = excelSerialToDate(normalized[field]);
+                                }
+                            });
+
+                            return normalized;
                         });
 
                         console.log("✅ All Data Loaded:", allData.length, "rows");
@@ -77,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const concluso = row['CONCLUSO'];
                             if (!concluso) return false;
 
-                            const rowDate = new Date(convertMMDDYYYYToISO(concluso));
+                            const rowDate = new Date(convertDDMMYYYYToISO(concluso));
                             if (isNaN(rowDate.getTime())) {
                                 console.warn('Skipping row due to invalid date:', row, concluso);
                                 return false;
@@ -142,8 +157,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (cellContent === null || cellContent === undefined || cellContent === '') {
                     cellContent = ''; // Empty cell
                 } else if (key === 'AVVIATO' || key === 'CONCLUSO') {
-                    // Convert Excel serial numbers to readable dates if applicable
-                    cellContent = row[key] ? convertMMDDYYYYToDDMMYYYY(row[key]) : '';
+                    if (typeof row[key] === 'number') {
+                        cellContent = excelSerialToDate(row[key]);
+                    } else {
+                        cellContent = row[key] || '';
+                    }
                 }
 
                 td.textContent = cellContent;
@@ -152,31 +170,6 @@ document.addEventListener('DOMContentLoaded', function() {
             tableBody.appendChild(tr);
         });
     }  
-
-    function convertMMDDYYYYToDDMMYYYY(dateStr) {
-        if (typeof dateStr === 'string') {
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-                // Ensure the date is in the expected format (mm/dd/yyyy or mm/dd/yy)
-                const month = parts[0].padStart(2, '0'); // Ensure 2-digit month
-                const day = parts[1].padStart(2, '0');   // Ensure 2-digit day
-                let year = parts[2];
-    
-                // Convert 2-digit year to 4-digit year if necessary
-                if (year.length === 2) {
-                    year = year > 50 ? `19${year}` : `20${year}`;
-                }
-    
-                return `${day}/${month}/${year}`; // dd/mm/yyyy format
-            } else {
-                console.error('Invalid date string, expected mm/dd/yyyy format:', dateStr);
-                return null;
-            }
-        } else {
-            console.error('Invalid date type:', dateStr);
-            return null;
-        }
-    }
 
     // assign values to "schede singole"
     function processData(filtered) {
@@ -194,8 +187,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 campo01: "V.7.0",
                 campo02: "MediazioniSchede",
                 campo03: codice_sede,  // global variable
-                campo04: convertTimeFormat(trimester.startDate),
-                campo05: convertTimeFormat(trimester.endDate),
+                campo04: toYYYYMMDD(trimester.startDate),
+                campo05: toYYYYMMDD(trimester.endDate),
                 campo06: campo06(row),
                 campo07: campo07(row),
                 campo08: campo08(row),
@@ -238,21 +231,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Process single med button event listener
     document.getElementById('process_data').addEventListener('click', function() {
         if (!filteredData || filteredData.length === 0) {
             console.error("No filtered data available. Please run the filter process first.");
             return;
         }
-        
-        console.log('filteredData length:', filteredData.length);  // ← add this
-        filteredData.forEach((row, i) => {                         // ← and this
-            console.log(`filteredData[${i}]:`, row['AVVIATO'], row['MED']);
-        });
-        
-        const processedData = processData(filteredData);
-        console.log('processedData length:', processedData.length); // ← and this
-        generateCSV(processedData, trimester);
+
+        try {
+            const processedData = processData(filteredData);
+            console.log('processedData length:', processedData.length);
+            generateCSV(processedData, trimester);
+        } catch (e) {
+            document.getElementById("warningContainer").innerHTML = 
+                `<div class="warning">${e.message}</div>`;
+            console.error("❌ Elaborazione interrotta:", e.message);
+            return; // hard stop — no CSV generated
+        }
     });
 
 
@@ -275,11 +269,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const codice_sede = generateCodiceSede(org_code);
 
     function campo06(row) {
-        // Convert AVVIATO to dd (day only) and extract the year (yy)
         const avviatoParts = row['AVVIATO'].split('/');
-        const year = avviatoParts[2];   // Get the year part (yy)
+        const year = avviatoParts[2].slice(-2);  // last 2 digits of year
 
-        // Return the combination of MED and year (yy)
         return `${String(row['MED']).padStart(4, '0')}/${year}`;
     }
 
@@ -291,22 +283,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function campo07(row) {
-        const avviatoDate = new Date(row['AVVIATO']);
-        return formatDate(avviatoDate);
+        const avviatoDate = row['AVVIATO'];
+        return avviatoDate;
     }
 
     function campo08(row, startDate, endDate) {
-        const avviatoDate = new Date(row['AVVIATO']);
-        const conclusoDate = new Date(row['CONCLUSO']);
-        const startDateObj = new Date(startDate);
-        const endDateObj = new Date(endDate);
+        const avviatoDate = new Date(convertDDMMYYYYToISO(row['AVVIATO']));
+        const conclusoDate = new Date(convertDDMMYYYYToISO(row['CONCLUSO']));
 
         if (conclusoDate < avviatoDate) {
-            return "Error: CONCLUSO must be greater than AVVIATO";
-        }
-
-        if (conclusoDate < startDateObj || conclusoDate > endDateObj) {
-            return "Error: CONCLUSO must be within selected trimester";
+            throw new Error(`⚠️ Incongruenza dati: CONCLUSO (${row['CONCLUSO']})
+            non può essere minore di AVVIATO (${row['AVVIATO']}). Verifica la MED - ${campo06(row)}`);
         }
 
         return formatDate(conclusoDate);
@@ -661,19 +648,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function campo39(row) {
-        // Extract the number from "GP-ISTANTE-n" pattern in the NOTE column using regex
-        const match = row['NOTE'].match(/GP-ISTANTE-(\d+)/);
-        return match ? match[1] : 0;
+        const note = (row['NOTE'] || '').toString();
+        const fatture = (row['FATTURE'] || '').toString();
+        const matchIstante = note.match(/GP-ISTANTE-(\d+)/);
+        const matchAderente = note.match(/GP-ADERENTE-(\d+)/);
+
+        if (fatture.includes('GP') && !matchIstante && !matchAderente) {
+            throw new Error(`⚠️ FATTURE contiene GP ma NOTE non contiene GP-ISTANTE o GP-ADERENTE. Controlla GP per la MED - ${campo06(row)}`);
+        }
+
+        return matchIstante ? matchIstante[1] : 0;
     }
 
     function campo40(row) {
-        // Extract the number from "GP-ADERENTE-n" pattern in the NOTE column using regex
-        const match = row['NOTE'].match(/GP-ADERENTE-(\d+)/);
-        return match ? match[1] : 0;
-    }
+        const note = (row['NOTE'] || '').toString();
+        const fatture = (row['FATTURE'] || '').toString();
+        const matchIstante = note.match(/GP-ISTANTE-(\d+)/);
+        const matchAderente = note.match(/GP-ADERENTE-(\d+)/);
 
+        if (fatture.includes('GP') && !matchIstante && !matchAderente) {
+            throw new Error(`⚠️ FATTURE contiene GP ma NOTE non contiene GP-ISTANTE o GP-ADERENTE. Controlla GP per la MED - ${campo06(row)}`);
+        }
+
+        return matchAderente ? matchAderente[1] : 0;
+    }
     function campo41(row) {
-        return row['INC.RI'];
+        const incRi = safeParseFloat(row['INC.RI']);
+        
+        if (isNaN(incRi)) {
+            throw new Error(`⚠️ Incongruenza dati: INC.RI (${row['INC.RI']}) non è un numero valido. Verifica la MED - ${campo06(row)}`);
+        }
+        
+        if (incRi <= 0) {
+            throw new Error(`⚠️ Incongruenza dati: INC.RI (${row['INC.RI']}) non può essere zero o negativo. Verifica la MED - ${campo06(row)}`);
+        }
+
+        if (!Number.isInteger(incRi)) {
+            throw new Error(`⚠️ Incongruenza dati: INC.RI (${row['INC.RI']}) non è un numero intero. Verifica la MED - ${campo06(row)}`);
+        }
+
+        return incRi;
     }
 
     // campo42_43: Based on V.CONF column
@@ -929,13 +943,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         allData.forEach(row => {
 
+
+
             if ((row.MATERIA || "").trim().toLowerCase() !== category.trim().toLowerCase()) return;
 
             const avviatoDate = row.AVVIATO && row.AVVIATO.trim() !== ""
-                ? new Date(convertMMDDYYYYToISO(row.AVVIATO))
+                ? new Date(convertDDMMYYYYToISO(row.AVVIATO))
                 : null;
             const conclusoDate = row.CONCLUSO && row.CONCLUSO.trim() !== ""
-                ? new Date(convertMMDDYYYYToISO(row.CONCLUSO))
+                ? new Date(convertDDMMYYYYToISO(row.CONCLUSO))
                 : null;
 
             const avviatoVal = avviatoDate ? dateValue(avviatoDate) : null;
@@ -980,13 +996,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const giudice = (row.GIUDICE || "").trim().toUpperCase();
                 if (giudice === "SI") {
-                    counts.giudiceSi++;
+                    counts.giudiceSi ++;
+ 
                 }
             }
 
             // ── PRIMO INCONTRO ─────────────────────────────────────────
             const primoIncDate = row["1INC"] && row["1INC"].trim() !== ""
-                ? new Date(convertMMDDYYYYToISO(row["1INC"]))
+                ? new Date(convertDDMMYYYYToISO(row["1INC"]))
                 : null;
             const primoIncVal = primoIncDate ? dateValue(primoIncDate) : null;
 
@@ -995,13 +1012,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const esito = (row.ESITO || "").trim().toUpperCase();
                 const incRi = safeParseFloat(row["INC.RI"]);
-                if (incRi > 1) counts.primoIncOltre++;
-                if (incRi === 1 && esito !== "ACCORDO") counts.primoIncNegativo++;
+                if (incRi > 1 || (incRi === 1 && esito === "ACCORDO") || esito === "") {
+                    counts.primoIncOltre++;
+                }
+                if (incRi === 1 && esito !== "ACCORDO" && esito !== "") {
+                    counts.primoIncNegativo++;
+                }
             }
+
+
         });
 
         console.log(`>> ${category} | PI: ${counts.pendenti_iniziali} | AVV: ${counts.avviatoInTrimester} | CONC: ${counts.conclusoInTrimester} | PF: ${counts.pendenti_finali}`);
 
+        if (counts.primoInc !== counts.primoIncOltre + counts.primoIncNegativo) {
+            console.error(
+                `⚠️ ANOMALIA ${category} | primoInc (${counts.primoInc}) != oltre (${counts.primoIncOltre}) + negativo (${counts.primoIncNegativo}) | diff: ${counts.primoInc - counts.primoIncOltre - counts.primoIncNegativo}`
+            );
+        }
+        if (counts.giudiceSi > counts.pendenti_iniziali + counts.avviatoInTrimester) {
+            console.error(
+                `⚠️ ANOMALIA ${category} | giudiceSi (${counts.giudiceSi}) > pendenti_iniziali (${counts.pendenti_iniziali}) + avviatoInTrimester (${counts.avviatoInTrimester})`
+            );
+        }
         return counts;
     }
 
@@ -1013,8 +1046,8 @@ document.addEventListener('DOMContentLoaded', function() {
             campo001: "V.7.0",
             campo002: "Mediazioni",
             campo003: "800921",
-            campo004: convertTimeFormat(trimester.startDate),
-            campo005: convertTimeFormat(trimester.endDate)
+            campo004: toYYYYMMDD(trimester.startDate),
+            campo005: toYYYYMMDD(trimester.endDate)
         };
     
         // Loop through each category for which you have a mapping function.

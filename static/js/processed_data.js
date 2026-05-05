@@ -42,63 +42,67 @@ document.addEventListener('DOMContentLoaded', function() {
     let trimester = [];
     // Filter button event listener
     document.getElementById('filter_button').addEventListener('click', function() {
-        const startDate = new Date(document.getElementById('start_date').value);
-        const endDate = new Date(document.getElementById('end_date').value);
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
+        console.log(">> CLICK FIRED | start:", startDate, "| end:", endDate);
 
-        fetch('/get_latest_file/')
-        .then(response => response.json())
-        .then(data => {
-            if (data.file_name) {
-                const filePath = `/media/uploads/${data.file_name}`;
-                fetch(filePath)
-                    .then(response => response.arrayBuffer())
-                    .then(arrayBuffer => {
-                        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const rows = XLSX.utils.sheet_to_json(sheet, {
-                            header: 1,
-                            defval: '',
-                            raw: false
-                        });
 
-                        const headers = rows[0] || [];
-                        allData = rows.slice(1).map(row => {
-                            return headers.reduce((acc, header, index) => {
-                                acc[header] = row[index] || '';
-                                return acc;
-                            }, {});
-                        });
+        // fetch('/get_latest_file/')
+        // .then(response => response.json())
+        // .then(data => {
+        //     if (data.file_name) {
+        //         const filePath = `/media/uploads/${data.file_name}`;
+        //         fetch(filePath)
+        //             .then(response => response.arrayBuffer())
+        //             .then(arrayBuffer => {
+        //                 const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        //                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        //                 const rows = XLSX.utils.sheet_to_json(sheet, {
+        //                     header: 1,
+        //                     defval: '',
+        //                     raw: false
+        //                 });
 
-                        console.log("✅ All Data Loaded:", allData.length, "rows");
+        //                 const headers = rows[0] || [];
+        //                 allData = rows.slice(1).map(row => {
+        //                     return headers.reduce((acc, header, index) => {
+        //                         acc[header] = row[index] || '';
+        //                         return acc;
+        //                     }, {});
+        //                 });
 
-                        // Filter rows based on "CONCLUSO" date column
-                        filteredData = allData.filter(row => {
-                            const concluso = row['CONCLUSO'];
-                            if (!concluso) return false;
+        //                 console.log("✅ All Data Loaded:", allData.length, "rows");
+        //                 console.log("Selected Start Date:", startDate);
+        //                 console.log("Selected End Date:", endDate); 
 
-                            const rowDate = new Date(convertMMDDYYYYToISO(concluso));
-                            if (isNaN(rowDate.getTime())) {
-                                console.warn('Skipping row due to invalid date:', row, concluso);
-                                return false;
-                            }
+        //                 // Filter rows based on "CONCLUSO" date column
+        //                 filteredData = allData.filter(row => {
+        //                     const concluso = row['CONCLUSO'];
+        //                     if (!concluso) return false;
 
-                            return rowDate >= startDate && rowDate <= endDate;
-                        });
+        //                     const rowDate = new Date(convertMMDDYYYYToISO(concluso));
+        //                     if (isNaN(rowDate.getTime())) {
+        //                         console.warn('Skipping row due to invalid date:', row, concluso);
+        //                         return false;
+        //                     }
 
-                        console.log("✅ Filtered Data Loaded:", filteredData.length, "rows");
+        //                     return rowDate >= startDate && rowDate <= endDate;
+        //                 });
 
-                        trimester = { startDate: startDate, endDate: endDate };
+        //                 console.log("✅ Filtered Data Loaded:", filteredData.length, "rows");
 
-                        displayFilteredData(filteredData);
-                    })
-                    .catch(error => {
-                        console.error('❌ Error fetching or parsing Excel file:', error);
-                    });
-            }
-        })
-        .catch(error => {
-            console.error('❌ Error loading the file:', error);
-        });
+        //                 trimester = { startDate: startDate, endDate: endDate };
+
+        //                 displayFilteredData(filteredData);
+        //             })
+        //             .catch(error => {
+        //                 console.error('❌ Error fetching or parsing Excel file:', error);
+        //             });
+        //     }
+        // })
+        // .catch(error => {
+        //     console.error('❌ Error loading the file:', error);
+        // });
     });
 
     function displayFilteredData(filteredData) {
