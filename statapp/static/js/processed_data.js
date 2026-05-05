@@ -928,6 +928,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const trimEndVal = dateValue(trimEnd);
 
         allData.forEach(row => {
+
             if ((row.MATERIA || "").trim().toLowerCase() !== category.trim().toLowerCase()) return;
 
             const avviatoDate = row.AVVIATO && row.AVVIATO.trim() !== ""
@@ -940,11 +941,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const avviatoVal = avviatoDate ? dateValue(avviatoDate) : null;
             const conclusoVal = conclusoDate ? dateValue(conclusoDate) : null;
 
+
+
             // ── PENDENTI INIZIALI ──────────────────────────────────────────
             // Atomic check: started before trimester AND not yet closed at trimester start
             if (avviatoVal !== null && avviatoVal < trimStartVal) {
                 if (conclusoVal === null || conclusoVal >= trimStartVal) {
                     counts.pendenti_iniziali++;
+    
+                }
+            }
+
+            // ── PENDENTI FINALI ────────────────────────────────────────
+            if (avviatoVal !== null && avviatoVal <= trimEndVal) {
+                if (conclusoVal === null || conclusoVal > trimEndVal) {
+                    counts.pendenti_finali++;
                 }
             }
 
@@ -956,6 +967,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // ── CONCLUSO IN TRIMESTER ──────────────────────────────────────
             if (conclusoVal !== null && conclusoVal >= trimStartVal && conclusoVal <= trimEndVal) {
                 counts.conclusoInTrimester++;
+
 
                 const esito = (row.ESITO || "").trim().toUpperCase();
                 if (esito === "ACCORDO") {
@@ -987,9 +999,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (incRi === 1 && esito !== "ACCORDO") counts.primoIncNegativo++;
             }
         });
-
-        // Guaranteed: pendenti_finali[N] === pendenti_iniziali[N+1]
-        counts.pendenti_finali = counts.pendenti_iniziali + counts.avviatoInTrimester - counts.conclusoInTrimester;
 
         console.log(`>> ${category} | PI: ${counts.pendenti_iniziali} | AVV: ${counts.avviatoInTrimester} | CONC: ${counts.conclusoInTrimester} | PF: ${counts.pendenti_finali}`);
 
