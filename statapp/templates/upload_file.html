@@ -1,0 +1,72 @@
+{% load static %}
+<script src="{% static 'js/processed_data.js' %}"></script>
+<h2>Upload File</h2>
+
+<div id="warningContainer"></div>
+
+
+  
+<form method="post" id="upload_form" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Upload File</button>
+</form>
+
+<hr>
+
+<h3>Filter Data by Date Range</h3>
+
+<label for="start_date">Start Date:</label>
+<input type="date" id="start_date" name="start_date">
+
+<label for="end_date">End Date:</label>
+<input type="date" id="end_date" name="end_date">
+
+<button id="filter_button" type="button">Filter</button>
+
+<hr>
+
+<button id="process_data">Process Data</button>
+<button id="process_riepilogo">Process Riepilogo</button>
+<button id="download_csv">Download Riepilogo</button>
+
+<h3>Processed Riepilogo</h3>
+<div id="tableContainer"></div>
+
+
+<!-- Table to display the filtered data -->
+<table id="filtered_data_table">
+    <thead>
+        <!-- Table headers dynamically generated -->
+    </thead>
+    <tbody>
+        <!-- Table rows dynamically generated -->
+    </tbody>
+</table>
+
+
+
+<!-- processed_data.html -->
+<h3>Processed Data</h3>
+
+
+{% if data %}
+    <table>
+        <tr>
+            {% for column in data.columns %}
+                <th>{{ column }}</th>
+            {% endfor %}
+        </tr>
+        {% for row in data.values %}
+            <tr>
+                {% for cell in row %}
+                    <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </table>
+{% else %}
+    <p>No data to display. Please upload a file and process it.</p>
+{% endif %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
+
