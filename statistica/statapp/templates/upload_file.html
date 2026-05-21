@@ -1,0 +1,114 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/process.css' %}">
+<script src="{% static 'js/processed_data.js' %}"></script>
+<h2>Upload File</h2>
+
+<div id="warningContainer"></div>
+
+
+  
+<form method="post" id="upload_form" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Upload File</button>
+</form>
+
+<hr>
+
+<h3>Filtra per periodo</h3>
+
+<!-- Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/it.js"></script>
+
+<div class="date-row">
+  <div class="date-field">
+    <label for="start_date">Data inizio:</label>
+    <input type="text" id="start_date" name="start_date" placeholder="gg/mm/aaaa">
+  </div>
+  <div class="date-field">
+    <label for="end_date">Data fine:</label>
+    <input type="text" id="end_date" name="end_date" placeholder="gg/mm/aaaa">
+  </div>
+  <button id="filter_button" type="button">Filtra</button>
+</div>
+<hr>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function() {
+    const config = {
+        dateFormat: "d/m/Y",
+        locale: "it",
+        allowInput: true,
+        parseDate: (dateStr, format) => {
+            const parts = dateStr.split("/");
+            if (parts.length !== 3) return null;
+            let [day, month, year] = parts;
+            if (year.length === 2) year = "20" + year;
+            day = day.padStart(2, '0');
+            month = month.padStart(2, '0');
+            return new Date(`${year}-${month}-${day}`);
+        }
+    };
+    flatpickr("#start_date", config);
+    flatpickr("#end_date", config);
+});
+
+</script>
+
+<div class="button-strip">
+  <button id="process_data">Process Data</button>
+  <button id="process_riepilogo">Process Riepilogo</button>
+  <button id="download_csv">Download Riepilogo</button>
+</div>
+
+<h3>Processed Riepilogo</h3>
+<div id="tableContainer"></div>
+
+
+<!-- Table to display the filtered data -->
+<table id="filtered_data_table">
+    <thead>
+        <!-- Table headers dynamically generated -->
+    </thead>
+    <tbody>
+        <!-- Table rows dynamically generated -->
+    </tbody>
+</table>
+
+{% load custom_filters %}
+
+{% for row in data.values %}
+  <tr>
+    {% for cell in row %}
+      <td>{{ cell|nl2br }}</td>
+    {% endfor %}
+  </tr>
+{% endfor %}
+
+<!-- processed_data.html -->
+<h3>Processed Data</h3>
+
+
+{% if data %}
+    <table>
+        <tr>
+            {% for column in data.columns %}
+                <th>{{ column }}</th>
+            {% endfor %}
+        </tr>
+        {% for row in data.values %}
+            <tr>
+                {% for cell in row %}
+                    <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </table>
+{% else %}
+    <p>No data to display. Please upload a file and process it.</p>
+{% endif %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
+
